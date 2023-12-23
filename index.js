@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv').config();
+const jwt = require('jsonwebtoken')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 
@@ -22,6 +23,23 @@ const client = new MongoClient(uri, {
     }
 });
 
+const verifyJWT = (req, res, next) => {
+    // console.log(req.headers.authorization);
+    const authorization = req.headers.authorization;
+    if (!authorization) {
+        return res.status(401).send({ error: true, message: 'Unauthorization Access' });
+    }
+    const token = authorization.split(' ')[1];
+    // console.log("Token JWT", token);
+    jwt.verify(token, process.env.ACCESS_TOKEN, (error, decoded) => {
+        if (error) {
+            return res.status(403).send({ error: true, message: 'Unauthorization Access' })
+        }
+        req.decoded = decoded;
+        next();
+    })
+}
+
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
@@ -34,6 +52,12 @@ async function run() {
         const indexOptions = { name: "carService" };
         const result = await bookingCollections.createIndex(indexKeys, indexOptions);
         // console.log(result);
+
+        app.post('/jwt', (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN, { expiresIn: '7d' });
+            res.send({ token });
+        })
 
         app.get('/services', async (req, res) => {
             const result = await serviceCollections.find().toArray();
@@ -50,10 +74,17 @@ async function run() {
             res.send(result);
         })
 
-        app.get('/bookings', async (req, res) => {
-            // console.log(req.query);
+        app.get('/bookings', verifyJWT, async (req, res) => {
+            // console.log(req.headers.authorization);
+            const decoded = req.decoded;
+            // console.log(req.decoded.email);
+
+            if(req.decoded.email !== req.query.email) {
+                return res.status(403).send({error: true, message: 'Forbidden Access'});
+            }
+
             let query = {};
-            if (req.query?.email) {
+            if (req.query?.email === req.decoded.email) {
                 query = { email: req.query.email }
             }
             const result = await bookingCollections.find(query).sort({ entryDate: -1 }).toArray();
@@ -69,34 +100,8 @@ async function run() {
                     { price: { $regex: searchText, $options: "i" } }
                 ]
             }).toArray();
-            // console.log(result);
             res.send(result);
         })
-
-        // app.get('/bookingSearch/:text', async (req, res) => {
-        //     const searchText = req.params.text;
-        //     // console.log(searchText);
-
-        //     let query = {};
-        //     if (searchText !== '') {
-        //         query = {
-        //             $or: [
-        //                 { service: { $regex: searchText, $options: "i" } },
-        //                 { price: { $regex: searchText, $options: "i" } }
-        //             ]
-        //         };
-        //     }
-
-        //     try {
-        //         const result = await bookingCollections.find(query).toArray();
-        //         // console.log(result);
-        //         res.send(result);
-        //     } catch (error) {
-        //         console.error(error);
-        //         res.status(500).send('Internal Server Error');
-        //     }
-        // });
-
 
         app.post('/bookings', async (req, res) => {
             const booking = req.body;
