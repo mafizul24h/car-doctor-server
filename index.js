@@ -75,12 +75,13 @@ async function run() {
         })
 
         app.get('/bookings', verifyJWT, async (req, res) => {
+            // console.log(req.query);
             // console.log(req.headers.authorization);
             const decoded = req.decoded;
             // console.log(req.decoded.email);
 
-            if(req.decoded.email !== req.query.email) {
-                return res.status(403).send({error: true, message: 'Forbidden Access'});
+            if (req.decoded.email !== req.query.email) {
+                return res.status(403).send({ error: true, message: 'Forbidden Access' });
             }
 
             let query = {};
@@ -88,6 +89,30 @@ async function run() {
                 query = { email: req.query.email }
             }
             const result = await bookingCollections.find(query).sort({ entryDate: -1 }).toArray();
+            res.send(result);
+        })
+
+        
+        app.get('/newBookings', verifyJWT, async (req, res) => {
+            // console.log(req.query);
+
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 5;
+            const skip = (page - 1) * limit;
+
+            const decoded = req.decoded;
+            // console.log(req.decoded.email);
+
+            if (req.decoded.email !== req.query.email) {
+                return res.status(403).send({ error: true, message: 'Forbidden Access' });
+            }
+
+            let query = {};
+            if (req.query?.email === req.decoded.email) {
+                query = { email: req.query.email }
+            }
+
+            const result = await bookingCollections.find(query).skip(skip).limit(limit).sort({ entryDate: -1 }).toArray();
             res.send(result);
         })
 
@@ -109,6 +134,22 @@ async function run() {
             booking.status = 'Pending';
             const result = await bookingCollections.insertOne(booking);
             res.send(result);
+        })
+
+        // paginaiton
+        app.get('/totalBookings', async (req, res) => {
+            try {
+                const userEmail = req.query.email;
+                // console.log(email);
+                if (!userEmail) {
+                    return res.status(401).send({ error: true, message: 'Email is missing' });
+                }
+                const result = await bookingCollections.countDocuments({email: userEmail});
+                res.send({ totalBookings: result })
+            } catch (error) {
+                console.log(error);
+                res.status(500).send({ error: true, message: 'Internal Server Error' });
+            }
         })
 
         app.patch('/bookings/:id', async (req, res) => {
