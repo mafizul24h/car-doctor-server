@@ -60,7 +60,14 @@ async function run() {
         })
 
         app.get('/services', async (req, res) => {
-            const result = await serviceCollections.find().toArray();
+            const sort = req.query.sort;
+            const query = {};
+            const options = {
+                sort: {
+                    "price": sort === 'asc' ? 1 : -1
+                }
+            }
+            const result = await serviceCollections.find(query, options).toArray();
             res.send(result);
         })
 
@@ -92,7 +99,7 @@ async function run() {
             res.send(result);
         })
 
-        
+
         app.get('/newBookings', verifyJWT, async (req, res) => {
             // console.log(req.query);
 
@@ -144,7 +151,7 @@ async function run() {
                 if (!userEmail) {
                     return res.status(401).send({ error: true, message: 'Email is missing' });
                 }
-                const result = await bookingCollections.countDocuments({email: userEmail});
+                const result = await bookingCollections.countDocuments({ email: userEmail });
                 res.send({ totalBookings: result })
             } catch (error) {
                 console.log(error);
